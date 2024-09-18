@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cytobench"
-version = "0.1.24"
+version = "0.1.25"
 authors = [
     { name = "Nicolo' Lazzaro", email = "nlazzaro@fbk.eu" },
 ]
-description = "Benchmarking library for generative algorithms in omics data"
+description = "Benchmarking library for generative algorithms"
 readme = "README.md"
 license = { file = "LICENSE" }
 classifiers = [
@@ -20,12 +20,11 @@ keywords = ["benchmarking", "generative algorithms", "omics data"]
 
 dependencies = [
     "numpy==1.25.2",
-    "pandas==2.0.3",
     "scipy==1.11.4",
     "scikit-learn==1.2.2",
-    "requests",
+    "python-igraph==0.11.6",
+    "leidenalg==0.10.2",
 ]
 
 [project.urls]
-# Uncomment the following line and fill in the URL if you have one
-# "Homepage" = "https://github.com/username/package_name"
+"Homepage" = "https://github.com/lazzaronico/cytobench"
