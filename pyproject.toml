@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=40.9.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cytobench"
+version = "0.1.24"
+authors = [
+    { name = "Nicolo' Lazzaro", email = "nlazzaro@fbk.eu" },
+]
+description = "Benchmarking library for generative algorithms in omics data"
+readme = "README.md"
+license = { file = "LICENSE" }
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+keywords = ["benchmarking", "generative algorithms", "omics data"]
+
+dependencies = [
+    "numpy==1.25.2",
+    "pandas==2.0.3",
+    "scipy==1.11.4",
+    "scikit-learn==1.2.2",
+    "requests",
+]
+
+[project.urls]
+# Uncomment the following line and fill in the URL if you have one
+# "Homepage" = "https://github.com/username/package_name"
