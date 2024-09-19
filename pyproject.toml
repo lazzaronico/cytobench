@@ -28,3 +28,6 @@ dependencies = [
 
 [project.urls]
 "Homepage" = "https://github.com/lazzaronico/cytobench"
+
+[tool.setuptools]
+packages = ["cytobench"]
