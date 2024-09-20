@@ -1,5 +1,5 @@
-# CytoBench
-<img src="logo.png" alt="CytoBench Logo" width="400"  align="left" style="margin-right: 10px;" />
+# Cytobench
+<img src="https://github.com/lazzaronico/cytobench/blob/main/logo.png" alt="Cytobench Logo" width="400"  align="left" style="margin-right: 10px;" />
 
 Welcome to Cytobench, the friendliest benchmarking library in the village!
 
@@ -7,7 +7,7 @@ This repository is meant as a demo implementation of a scoring pipeline to evalu
 
 The code is not meant as a performant implementation, nor has it been protected by proper safety checks: do not use this in production environments!
 
-You can install the latest version via pip:
+You can install the latest version via pip (requires python 3.10):
 ```bash
 pip install cytobench
 ```

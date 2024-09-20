@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=40.9.0", "wheel"]
+requires = ["setuptools>=67.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "cytobench"
-version = "0.1.25"
+version = "0.1.28"
 authors = [
     { name = "Nicolo' Lazzaro", email = "nlazzaro@fbk.eu" },
 ]
@@ -19,11 +19,11 @@ classifiers = [
 keywords = ["benchmarking", "generative algorithms", "omics data"]
 
 dependencies = [
-    "numpy==1.25.2",
-    "scipy==1.11.4",
-    "scikit-learn==1.2.2",
-    "python-igraph==0.11.6",
-    "leidenalg==0.10.2",
+    "numpy>=1.24,<2.0",
+    "scipy>=1.11,<2.0",
+    "scikit-learn>=1.2,<2.0",
+    "python-igraph>=0.11.6",
+    "leidenalg>=0.10.2"
 ]
 
 [project.urls]
