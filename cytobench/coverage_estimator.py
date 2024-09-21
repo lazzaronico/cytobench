@@ -55,6 +55,7 @@ def ped_null_distribution(X, distance_metric = 'l1', n_bootstrap = 100):
         peds.append(compute_ped(pdist[np.ix_(Ai, Ai)], pdist[np.ix_(Ai, Bi)], distance_metric = 'precomputed'))
 
     # these pairwise distance will approximately follow a Gamma distribution
+    # this will be its true distribution for simple cases, but just an approximation for ground distributions with multiple components
     return scipy.stats.gamma(*scipy.stats.gamma.fit(peds))
 
 
