@@ -6,7 +6,7 @@ from .coverage_estimator import CoverageEstimator
 def score_model(
     sampling_fn, environment_points, data_validator = None, validity_penalty_exp = 1, aggregate_subclusters = True, approx_scoring = False, 
     scope = 'balanced', elu_score = True, n_iterations = 1000, plateau_after_n = None, score_every_n = 1, 
-    min_dist_q = None, bootstrap_n = 30, approx_p = 1.0, clustering_resolution = 1.0, local_knn = 15, distance_metric='l1'):
+    min_dist_q = None, bootstrap_n = 30, approx_p = 1.0, clustering_resolution = 1.0, local_knn = 15, distance_type='distance', distance_metric='l1'):
     
     ''' 
     Fully score a single trajectory (n of these will make up the actual score interval for a model)
@@ -19,7 +19,7 @@ def score_model(
         validator = data_validator, validity_penalty_exp = validity_penalty_exp, approx_p = approx_p, scope = scope, 
         clustering_resolution = clustering_resolution, local_knn = local_knn, 
         min_dist_q = min_dist_q, bootstrap_n = bootstrap_n, 
-        distance_metric = distance_metric
+        distance_type = distance_type, distance_metric = distance_metric
     )
     coverage_estimator.fit(environment_points)
     

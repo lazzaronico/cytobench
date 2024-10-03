@@ -11,58 +11,77 @@ import igraph
 import leidenalg
 
 
-def compute_ped(reference_samples, evaluated_samples, distance_metric = 'l1'):
+def compute_pdist(X, Y = None, metric = 'l1'):
     
-    '''
-    The pointwise distributions distance can be computed using any distance between distributions;
-    in this notebook we'll use the wasserstein distance
-    '''
-    
-    if distance_metric == 'precomputed':
-        dist_AA, dist_AB = reference_samples, evaluated_samples
-    else:
-        dist_AA = sklearn.metrics.pairwise_distances(reference_samples, metric=distance_metric, n_jobs=-1)
-        dist_AB = sklearn.metrics.pairwise_distances(reference_samples, evaluated_samples, metric=distance_metric, n_jobs=-1)
-
-    # rows of the two distance matrix must be equal since they are computed with respect to the same reference samples
-    assert len(dist_AA) == len(dist_AB)
-
-    # the final pointwise empirical distance is given by the pairwise comparison of the distances distribution
-    # of each point in the reference set wrt its distances distribution against every point in the evaluated set
-    return np.mean([
-        scipy.stats.wasserstein_distance(dist_AA[i], dist_AB[i]) 
-        for i in range(len(dist_AA))
-    ])
+    # compute pairwise distance matrix between two sets of samples
+    return sklearn.metrics.pairwise_distances(X, Y, metric = metric, n_jobs = -1)
 
 
-def ped_null_distribution(X, distance_metric = 'l1', n_bootstrap = 100):
+def pointwise_empirical_distance(XX, XY, YY):
     
-    '''
-    bootstrap pointwise empirical distances of an empirical distribution with respect to itself;
-    return the resulting theoretical distribution
-    '''
+    # safety check; refactor with quantiles instead of raw sorting if you need to compare asymmetric distributions
+    assert len(XX) == len(YY), 'implementation requires equal sample size'
+
+    # return the pointwise empirical distance from the distance matrices
+    return (np.mean(np.abs(np.sort(XY) - np.sort(XX))) + np.mean(np.abs(np.sort(XY.T) - np.sort(YY)))) / 2
+
+
+def pointwise_empirical_divergence(XX, XY):
     
-    # pdist is 
-    pdist = X if distance_metric == 'precomputed' else sklearn.metrics.pairwise_distances(X, metric=distance_metric, n_jobs=-1)
+    # safety check; refactor with quantiles instead of raw sorting if you need to compare asymmetric distributions
+    assert len(XX) == len(XY) and len(XX) == len(XY.T), 'implementation requires equal sample size'
+
+    # return the pointwise empirical divergence from the distance matrices
+    return np.mean(np.abs(np.sort(XY) - np.sort(XX)))
+
+
+def energy_distance(XX, XY, YY):
+
+    # return the energy distance from the distance matrices
+    return np.sqrt(2 * np.mean(XY) - np.mean(XX) - np.mean(YY))
+
+
+def null_distribution(X, distance = 'distance', metric = 'l1', n_bootstrap = 100):
+    
+    # bootstrap pointwise empirical distances of an empirical distribution with respect to itself;
+    # return the resulting theoretical distribution
+    assert distance in ['distance', 'divergence', 'energy distance']
+    
+    # compute the internal pairwise distance to build the distribution
+    pdist = X if metric == 'precomputed' else compute_pdist(X)
     
     # gather empirical PEDs
-    peds = []
+    distances = []
     for i in range(n_bootstrap):
         
         Ai = np.random.choice(len(X), len(X))
         Bi = np.random.choice(len(X), len(X))
-        
-        peds.append(compute_ped(pdist[np.ix_(Ai, Ai)], pdist[np.ix_(Ai, Bi)], distance_metric = 'precomputed'))
 
-    # these pairwise distance will approximately follow a Gamma distribution
-    # this will be its true distribution for simple cases, but just an approximation for ground distributions with multiple components
-    return scipy.stats.gamma(*scipy.stats.gamma.fit(peds))
+        if distance == 'divergence':
+
+            # compute the pointwise empirical divergence between the two empirical distributions
+            dist = pointwise_empirical_divergence(pdist[np.ix_(Ai, Ai)], pdist[np.ix_(Ai, Bi)])
+
+        elif distance == 'distance':
+
+            # compute the pointwise empirical distance between the two empirical distributions
+            dist = pointwise_empirical_distance(pdist[np.ix_(Ai, Ai)], pdist[np.ix_(Ai, Bi)], pdist[np.ix_(Bi, Bi)])
+
+        elif distance == 'energy distance':
+
+            # compute the pointwise empirical distance between the two empirical distributions
+            dist = energy_distance(pdist[np.ix_(Ai, Ai)], pdist[np.ix_(Ai, Bi)], pdist[np.ix_(Bi, Bi)])
+            
+        distances.append(dist)
+
+    # approximate the distributions with a gamma and return
+    return scipy.stats.gamma(*scipy.stats.gamma.fit(distances))
 
 
 def cluster_with_leiden(X, resolution=1, knn=15, distance_metric='l1'):
     
     # either copy distance metric (X) if precomputed, otherwise compute it from the inputs
-    distance_matrix = np.copy(X) if distance_metric == 'precomputed' else sklearn.metrics.pairwise_distances(X, metric = distance_metric, n_jobs = -1)
+    distance_matrix = np.copy(X) if distance_metric == 'precomputed' else compute_pdist(X, metric = distance_metric)
         
     # construct connectivity matrix
     connectivity_matrix = sklearn.neighbors.kneighbors_graph(distance_matrix, metric = 'precomputed', n_neighbors = knn, mode = 'connectivity').astype(bool)
@@ -97,10 +116,7 @@ def get_centroids_repeats(pdist, labels):
 
 def get_clusters_pairings(centroids_repeats, labels, global_scope, local_scope):
     
-    '''
-    Store the index pairing of all points in the reference set to the ones in the evaluated set for the local scoring
-    '''
-
+    # store the index pairing of all points in the reference set to the ones in the evaluated set for the local scoring
     # store centroids-induced subsets for balanced/local scoring
     subsets, cum_i = [], 0
 
@@ -134,15 +150,15 @@ class CoverageEstimator:
     '''
     The coverage estimator is the most important piece of the scoring pipeline
     It's initialized at every scoring round, and takes as input a set of reference points that
-    will then be used to check how the simulated data is moving through the known manifold of any
-    given dataset in a robust and biologically meaningful manner
+    will then be used to check how the simulated data is moving through the reference manifold
     '''
     
     def __init__(
-        self, validator = None, validity_penalty_exp = 2, approx_p = 1.0, scope = 'balanced', distance_metric = 'l1', clustering_resolution = 1.0, local_knn = 15, min_dist_q = None, bootstrap_n = 30):
+        self, validator = None, validity_penalty_exp = 2, approx_p = 1.0, scope = 'balanced', distance_type = 'divergence', distance_metric = 'l1', clustering_resolution = 1.0, local_knn = 15, min_dist_q = None, bootstrap_n = 100):
         
         # validate multiple choice options
         assert scope in ['balanced', 'global', 'local', 'equal'], 'unrecognized scope'
+        assert distance_type in ['divergence', 'distance', 'energy distance'], 'unrecognized distance type'
         
         # store scope for scoring
         self.global_scope = scope in ['balanced', 'global']
@@ -159,7 +175,9 @@ class CoverageEstimator:
         # (speed decreases with square of samples due to pairwise distance computation with reference set)
         self.approx_p = approx_p
         
+        # metric space for pairwise distances computation and distance type
         self.distance_metric = distance_metric
+        self.distance_type = distance_type
         
         self.clustering_resolution = clustering_resolution
         self.local_knn = local_knn
@@ -181,7 +199,7 @@ class CoverageEstimator:
         # compute reference and initial points distances distribution, then make sure diagonal elements are zero
         # note: we always compute the full pairwise distance for the reference distribution to compute the local clusters,
         # however this could be trivially optimized (and it should) to work with large datasets
-        self.reference_pdist = self.distances_distribution(self.reference_points)
+        self.reference_pdist = compute_pdist(self.reference_points, metric = self.distance_metric)
         np.fill_diagonal(self.reference_pdist, 0)
         
         # initialize clusters, centroids and subsets idx mappings
@@ -192,7 +210,7 @@ class CoverageEstimator:
         
         # eventually initialize internal distributions
         if self.min_dist_q is not None:
-            self.estimate_null_distributions()
+            self.internal_distributions = self.estimate_null_distributions()
         
         # fetch local minimum or set to zero for fast execution
         self.min_dist = np.array([ d.ppf(self.min_dist_q) for d in self.internal_distributions ]) if self.min_dist_q is not None else np.zeros(len(self.subsets))
@@ -221,14 +239,6 @@ class CoverageEstimator:
             # weight each subset by its numerosity
             self.subsets_weights = np.array([ len(reference_ix) for reference_ix, evaluated_ix in self.subsets ]).astype(float)
             self.subsets_weights /= sum(self.subsets_weights)
-
-    def distances_distribution(self, X):
-        
-        # note: for evaluating a model on the local scope we don't need to compute the full pairwise distance and could simply do something like
-        # pdist[np.ix_(rix, eix)] = pairwise_distances(reference_points[rix], X[eix]) for rix, eix in subsets
-        # however the largely inefficient implementation of this class (and python in this context) would overshadow any marginal gains obtained on large datasets
-        # therefore we just use a simple full pairwise distance computation
-        return sklearn.metrics.pairwise_distances(self.reference_points, X, metric = self.distance_metric, n_jobs = -1)
     
     def compute_validity(self, X):
         
@@ -237,10 +247,9 @@ class CoverageEstimator:
     
     def estimate_null_distributions(self):
         
-        # compute the null ped distributions for all local subsets
-        # (self.internal_distributions will then be a list of scipy distributions)
-        self.internal_distributions = [
-            ped_null_distribution(self.reference_pdist[np.ix_(reference_ix, reference_ix)], distance_metric = 'precomputed', n_bootstrap = self.bootstrap_n)
+        # compute the null distributions for every subset
+        return [
+            null_distribution(self.reference_pdist[np.ix_(reference_ix, reference_ix)], distance = self.distance_type, metric = 'precomputed', n_bootstrap = self.bootstrap_n)
             for reference_ix, evaluated_ix in self.subsets
         ]
         
@@ -248,7 +257,7 @@ class CoverageEstimator:
         
         # compute the local null distributions if they haven't been yet
         if self.internal_distributions is None:
-            self.estimate_null_distributions()
+            self.internal_distributions = self.estimate_null_distributions()
             
         # set min_dist_q for reference
         self.min_dist_q = q
@@ -256,39 +265,58 @@ class CoverageEstimator:
         # set the minimum distance to the reference quantile
         self.min_dist = np.array([ d.ppf(self.min_dist_q) for d in self.internal_distributions ])
 
-    def compute_distance(self, X):
+    def compute_distance(self, Y):
+        
+        # note: for evaluating a model on the local scope we don't need to compute the full pairwise distance and could simply do something like
+        # pdist[np.ix_(rix, eix)] = pairwise_distances(reference_points[rix], Y[eix]) for rix, eix in subsets
+        # however the largely inefficient python implementation of this class would overshadow any marginal gains obtained on large datasets
+        
+        # for pointwise empirical divergence we don't need YY in downstream estimates
+        if self.distance_type != 'divergence':
+            YY = compute_pdist(Y, metric = self.distance_metric)
         
         # compute distances distribution of all sample points wrt the reference ones
-        distances_distribution = self.distances_distribution(X)
+        XY = compute_pdist(self.reference_points, Y, metric = self.distance_metric)
         
         # compute valid points to penalize score (if validator is provided)
-        validity_mask = self.compute_validity(X)
+        validity_mask = self.compute_validity(Y)
         
-        # 
-        subsets_pdes = np.zeros(len(self.subsets))
+        # initialize distances for every distribution cluster
+        distances = np.zeros(len(self.subsets))
         
         for subset_i in range(len(self.subsets)):
             
             reference_points, sampled_points = self.subsets[subset_i]
             
             # pairwise distances within the reference points considered in the subset
-            reference_pdist = self.reference_pdist[np.ix_(reference_points, reference_points)]
+            xx = self.reference_pdist[np.ix_(reference_points, reference_points)]
             
             # pairwise distances between the reference points considered in the subset and the relative evaluated points
-            evaluated_pdist = distances_distribution[np.ix_(reference_points, sampled_points)]
+            xy = XY[np.ix_(reference_points, sampled_points)]
             
-            # compute the PED between the two empirical distributions
-            dist = compute_ped(reference_pdist, evaluated_pdist, distance_metric = 'precomputed')
+            if self.distance_type == 'divergence':
+
+                # compute the pointwise empirical divergence between the two empirical distributions
+                distance = pointwise_empirical_divergence(xx, xy)
+            
+            elif self.distance_type == 'distance':
+
+                # compute the pointwise empirical distance between the two empirical distributions
+                distance = pointwise_empirical_distance(xx, xy, YY[np.ix_(sampled_points, sampled_points)])
+            
+            elif self.distance_type == 'energy distance':
+
+                # compute the pointwise empirical distance between the two empirical distributions
+                distance = energy_distance(xx, xy, YY[np.ix_(sampled_points, sampled_points)])
             
             # compute validity penalty in case it exists
             validity_penalty = ((len(sampled_points)+1) / (sum(validity_mask[sampled_points])+1))**self.validity_penalty_exp
             
-            # compute the distance, inversely scaled by the portion of invalid points
-            subsets_pdes[subset_i] = np.maximum(0, dist * validity_penalty - self.min_dist[subset_i])
+            # compute the distance, inversely scaled by the portion of invalid points and lower bound at the subset min distance
+            distances[subset_i] = np.maximum(0, distance * validity_penalty - self.min_dist[subset_i])
         
-        # return distances distribution for each cluster;
-        # since the numerosity will usually differ between clusters, we don't cast this to numpy array
-        return subsets_pdes
+        # return distances for each cluster
+        return distances
     
     def score_raw(self, X):
         

@@ -5,4 +5,4 @@ NOTE: all functions in the codebase have been implemented for demonstration porp
 
 # expose core functions
 from .scoring_pipeline import score_model
-from .coverage_estimator import CoverageEstimator, compute_ped, ped_null_distribution
+from .coverage_estimator import CoverageEstimator, pointwise_empirical_distance, pointwise_empirical_divergence, energy_distance, null_distribution
